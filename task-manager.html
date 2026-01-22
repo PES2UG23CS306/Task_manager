@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Manager - CRUD App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Load React and ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  
+  <!-- Load Babel for JSX transformation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Mock storage API using localStorage
+    window.storage = {
+      async get(key) {
+        const value = localStorage.getItem(key);
+        return value ? { key, value } : null;
+      },
+      async set(key, value) {
+        localStorage.setItem(key, value);
+        return { key, value };
+      },
+      async delete(key) {
+        localStorage.removeItem(key);
+        return { key, deleted: true };
+      }
+    };
+
+    // Icon components (simplified versions)
+    const Plus = ({ size = 24, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    );
+
+    const Pencil = ({ size = 24, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+      </svg>
+    );
+
+    const Trash2 = ({ size = 24, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+    );
+
+    const Check = ({ size = 24, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    );
+
+    const X = ({ size = 24, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    );
+
+    const RefreshCw = ({ size = 24, className = "" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+    );
+
+    function TaskManager() {
+      const [tasks, setTasks] = useState([]);
+      const [inputValue, setInputValue] = useState('');
+      const [editingId, setEditingId] = useState(null);
+      const [editValue, setEditValue] = useState('');
+      const [loading, setLoading] = useState(true);
+      const [filter, setFilter] = useState('all');
+
+      useEffect(() => {
+        loadTasks();
+      }, []);
+
+      useEffect(() => {
+        if (!loading) {
+          saveTasks();
+        }
+      }, [tasks, loading]);
+
+      const loadTasks = async () => {
+        try {
+          const result = await window.storage.get('tasks');
+          if (result && result.value) {
+            const loadedTasks = JSON.parse(result.value);
+            setTasks(loadedTasks);
+          }
+        } catch (error) {
+          console.log('No existing tasks found');
+          setTasks([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const saveTasks = async () => {
+        try {
+          await window.storage.set('tasks', JSON.stringify(tasks));
+        } catch (error) {
+          console.error('Failed to save:', error);
+        }
+      };
+
+      const addTask = () => {
+        if (inputValue.trim()) {
+          const newTask = {
+            id: Date.now(),
+            text: inputValue.trim(),
+            completed: false,
+            createdAt: new Date().toISOString()
+          };
+          setTasks([newTask, ...tasks]);
+          setInputValue('');
+        }
+      };
+
+      const toggleComplete = (id) => {
+        setTasks(tasks.map(task =>
+          task.id === id ? { ...task, completed: !task.completed } : task
+        ));
+      };
+
+      const startEdit = (task) => {
+        setEditingId(task.id);
+        setEditValue(task.text);
+      };
+
+      const saveEdit = () => {
+        if (editValue.trim()) {
+          setTasks(tasks.map(task =>
+            task.id === editingId ? { ...task, text: editValue.trim() } : task
+          ));
+          setEditingId(null);
+          setEditValue('');
+        }
+      };
+
+      const cancelEdit = () => {
+        setEditingId(null);
+        setEditValue('');
+      };
+
+      const deleteTask = (id) => {
+        setTasks(tasks.filter(task => task.id !== id));
+      };
+
+      const clearAll = async () => {
+        if (window.confirm('Delete all tasks?')) {
+          setTasks([]);
+          try {
+            await window.storage.delete('tasks');
+          } catch (error) {
+            console.error('Failed to clear:', error);
+          }
+        }
+      };
+
+      const clearCompleted = () => {
+        setTasks(tasks.filter(task => !task.completed));
+      };
+
+      const getFilteredTasks = () => {
+        switch (filter) {
+          case 'active':
+            return tasks.filter(task => !task.completed);
+          case 'completed':
+            return tasks.filter(task => task.completed);
+          default:
+            return tasks;
+        }
+      };
+
+      const filteredTasks = getFilteredTasks();
+      const activeCount = tasks.filter(t => !t.completed).length;
+      const completedCount = tasks.filter(t => t.completed).length;
+
+      if (loading) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
+            <div className="text-center">
+              <RefreshCw size={32} className="animate-spin text-purple-600 mx-auto mb-2" />
+              <p className="text-gray-600">Loading tasks...</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-6">
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <div className="mb-8">
+                <h1 className="text-4xl font-bold text-gray-800 mb-2">Task Manager</h1>
+                <p className="text-gray-500">Complete CRUD operations - Create, Read, Update, Delete</p>
+              </div>
+
+              <div className="mb-8">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addTask()}
+                    placeholder="What needs to be done?"
+                    className="flex-1 px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <button
+                    onClick={addTask}
+                    disabled={!inputValue.trim()}
+                    className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+                  >
+                    <Plus size={20} />
+                    Add Task
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFilter('all')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      filter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    All ({tasks.length})
+                  </button>
+                  <button
+                    onClick={() => setFilter('active')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      filter === 'active' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Active ({activeCount})
+                  </button>
+                  <button
+                    onClick={() => setFilter('completed')}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      filter === 'completed' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Completed ({completedCount})
+                  </button>
+                </div>
+
+                {tasks.length > 0 && (
+                  <div className="flex gap-2">
+                    {completedCount > 0 && (
+                      <button onClick={clearCompleted} className="text-sm text-orange-600 hover:text-orange-700 font-medium">
+                        Clear Completed
+                      </button>
+                    )}
+                    <button onClick={clearAll} className="text-sm text-red-600 hover:text-red-700 font-medium">
+                      Clear All
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {filteredTasks.length === 0 ? (
+                  <div className="text-center py-16">
+                    <p className="text-gray-400 text-lg">
+                      {tasks.length === 0 ? 'No tasks yet. Add your first task above!' : `No ${filter} tasks`}
+                    </p>
+                  </div>
+                ) : (
+                  filteredTasks.map((task) => (
+                    <div key={task.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all group">
+                      <button
+                        onClick={() => toggleComplete(task.id)}
+                        className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
+                          task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-500'
+                        }`}
+                      >
+                        {task.completed && <Check size={16} className="text-white" />}
+                      </button>
+
+                      {editingId === task.id ? (
+                        <input
+                          type="text"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && saveEdit()}
+                          className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className={`flex-1 text-lg ${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                          {task.text}
+                        </span>
+                      )}
+
+                      <div className="flex gap-2">
+                        {editingId === task.id ? (
+                          <>
+                            <button onClick={saveEdit} className="p-2 text-green-600 hover:bg-green-100 rounded-lg">
+                              <Check size={20} />
+                            </button>
+                            <button onClick={cancelEdit} className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg">
+                              <X size={20} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => startEdit(task)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg opacity-0 group-hover:opacity-100">
+                              <Pencil size={20} />
+                            </button>
+                            <button onClick={() => deleteTask(task.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-lg opacity-0 group-hover:opacity-100">
+                              <Trash2 size={20} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {tasks.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="flex justify-between items-center text-sm text-gray-500">
+                    <p>{activeCount} {activeCount === 1 ? 'item' : 'items'} left</p>
+                    <p>Data persists in browser</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<TaskManager />);
+  </script>
+</body>
+</html>
